@@ -37,6 +37,9 @@ from mamba_ssm import Mamba
 from torch_geometric.utils import degree, sort_edge_index
 
 
+import torch
+
+
 def permute_within_batch(x, batch):
     # Enumerate over unique batch indices
     unique_batches = torch.unique(batch)
@@ -58,19 +61,6 @@ def permute_within_batch(x, batch):
     permuted_indices = torch.cat(permuted_indices)
 
     return permuted_indices
-
-# path, subset = '/scratch/ssd004/scratch/tsepaole/ZINC_full/', False
-path, subset = '', True
-
-transform = T.AddRandomWalkPE(walk_length=20, attr_name='pe')
-train_dataset = ZINC(path, subset=subset, split='train', pre_transform=transform)
-val_dataset = ZINC(path, subset=subset, split='val', pre_transform=transform)
-test_dataset = ZINC(path, subset=subset, split='test', pre_transform=transform)
-
-train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=64)
-test_loader = DataLoader(test_dataset, batch_size=64)
-
 
 class GPSConv(torch.nn.Module):
 
@@ -307,29 +297,19 @@ def test(loader):
         total_error += (out.squeeze() - data.y).abs().sum().item()
     return total_error / len(loader.dataset)
 
+n=2
 
-# device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-#
-# model = GraphModel(channels=64, pe_dim=8, num_layers=10,
-#                    model_type='mamba',
-#                    shuffle_ind=0, order_by_degree=True,
-#                    d_conv=4, d_state=16,
-#                   ).to(device)
-# optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
-# scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=20,
-#                               min_lr=0.00001)
-# arr = []
-# for epoch in range(1, 30):
-#     loss = train()
-#     val_mae = test(val_loader)
-#     test_mae = test(test_loader)
-#     scheduler.step(val_mae)
-#     print(f'Epoch: {epoch:02d}, Loss: {loss:.4f}, Val: {val_mae:.4f}, '
-#           f'Test: {test_mae:.4f}')
-#     arr.append(test_mae)
-# ordering = arr
-# print(ordering)
 
+path, subset = '', True
+
+transform = T.AddRandomWalkPE(walk_length=20, attr_name='pe')
+train_dataset = ZINC(path, subset=subset, split='train', pre_transform=transform)
+val_dataset = ZINC(path, subset=subset, split='val', pre_transform=transform)
+test_dataset = ZINC(path, subset=subset, split='test', pre_transform=transform)
+
+train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=64)
+test_loader = DataLoader(test_dataset, batch_size=64)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -342,7 +322,7 @@ optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
 scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=20,
                               min_lr=0.00001)
 arr = []
-for epoch in range(1, 30):
+for epoch in range(1, n):
     loss = train()
     val_mae = test(val_loader)
     test_mae = test(test_loader)
@@ -352,6 +332,28 @@ for epoch in range(1, 30):
     arr.append(test_mae)
 permute = arr
 print(permute)
+
+model = GraphModel(channels=64, pe_dim=8, num_layers=10,
+                   model_type='mamba',
+                   shuffle_ind=0, order_by_degree=True,
+                   d_conv=4, d_state=16,
+                  ).to(device)
+optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
+scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=20,
+                              min_lr=0.00001)
+arr = []
+
+for epoch in range(1, n):
+    loss = train()
+    val_mae = test(val_loader)
+    test_mae = test(test_loader)
+    scheduler.step(val_mae)
+    print(f'Epoch: {epoch:02d}, Loss: {loss:.4f}, Val: {val_mae:.4f}, '
+          f'Test: {test_mae:.4f}')
+    arr.append(test_mae)
+ordering = arr
+print(ordering)
+
 
 
 import matplotlib.pyplot as plt
@@ -366,30 +368,6 @@ plt.show()
 
 
 
-import torch
-
-
-def permute_within_batch(x, batch):
-    # Enumerate over unique batch indices
-    unique_batches = torch.unique(batch)
-
-    # Initialize list to store permuted indices
-    permuted_indices = []
-
-    for batch_index in unique_batches:
-        # Extract indices for the current batch
-        indices_in_batch = (batch == batch_index).nonzero().squeeze()
-
-        # Permute indices within the current batch
-        permuted_indices_in_batch = indices_in_batch[torch.randperm(len(indices_in_batch))]
-
-        # Append permuted indices to the list
-        permuted_indices.append(permuted_indices_in_batch)
-
-    # Concatenate permuted indices into a single tensor
-    permuted_indices = torch.cat(permuted_indices)
-
-    return permuted_indices
 
 
 # Example usage
